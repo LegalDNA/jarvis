@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Jarvis Brief//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:DNlUqlAMB2n-20250822T090000@jarvis-brief
+DTSTAMP:20250822T214717Z
+DTSTART;TZID=America/Toronto:20250822T090000
+DTEND;TZID=America/Toronto:20250822T100000
+SUMMARY:@uoftlaw — Professor Trudo Lemmens\, Scholl Chair (Aug 22)
+DESCRIPTION:He is co-editor of the volume\, Unravelling MAiD in Canada: Euthanasia and Assisted Suicide as Medical Care (@mcgillqueensup\, 2025). Lemmens is cross-appointed @uoft_dlsph\, @uoftmedicine and @uoftjcb.\n\nPost: https://www.instagram.com/p/DNlUqlAMB2n/
+LOCATION:
+END:VEVENT
+END:VCALENDAR

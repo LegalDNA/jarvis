@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Jarvis Brief//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:DNfxTddsiVn-20250829T153000@jarvis-brief
+DTSTAMP:20250822T214717Z
+DTSTART;TZID=America/Toronto:20250829T153000
+DTEND;TZID=America/Toronto:20250829T163000
+SUMMARY:@uoftcfe — Need A Sounding Board For (Aug 29\, 15:30)
+DESCRIPTION:🤔 Our Academic Director\, Hong Luo\, hosts 45-minute brainstorming sessions every Friday from 2:00 – 3:30 PM. Click the link in our bio to register!\n\nPost: https://www.instagram.com/p/DNfxTddsiVn/
+LOCATION:
+END:VEVENT
+END:VCALENDAR

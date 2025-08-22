@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Jarvis Brief//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:DNimMvDNjPL-20250917T090000@jarvis-brief
+DTSTAMP:20250822T214717Z
+DTSTART;TZID=America/Toronto:20250917T090000
+DTEND;TZID=America/Toronto:20250917T100000
+SUMMARY:@uoftstartup — Mark Your Calendars For U (Sep 17)
+DESCRIPTION:Mark your calendars for U of T Acceleratorfest on September 17! For more information and to register\, click the link in our bio.\n\nPost: https://www.instagram.com/p/DNimMvDNjPL/
+LOCATION:campus
+END:VEVENT
+END:VCALENDAR
