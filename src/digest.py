@@ -1,5 +1,6 @@
 from typing import List, Dict
 from urllib.parse import quote
+from .config import GCAL_AUTHUSER
 
 PRIORITY_ORDER = {"Critical": 0, "Time-Sensitive": 1, "FYI": 2}
 
@@ -22,7 +23,6 @@ CSS = """
 """
 
 def _gcal_url(it: Dict) -> str:
-    """Generate a Google Calendar template URL if start/end available."""
     start = it.get("start_fmt", "")
     end = it.get("end_fmt", "")
     if not (start and end):
@@ -31,11 +31,15 @@ def _gcal_url(it: Dict) -> str:
     details = f"{it.get('summary','')}\n\nPost: {it.get('url','#')}"
     location = it.get("venue_hint","")
     base = "https://calendar.google.com/calendar/render?action=TEMPLATE"
-    return (
+    url = (
         f"{base}&text={quote(text)}&dates={quote(start + '/' + end)}"
         f"&details={quote(details)}"
         f"&location={quote(location)}"
+        f"&ctz=America/Toronto"
     )
+    if GCAL_AUTHUSER:
+        url += f"&authuser={quote(GCAL_AUTHUSER)}"
+    return url
 
 def _card_html(it: Dict) -> str:
     date_line = f"<div class='meta'><b>Date:</b> {it.get('date_hint','')}</div>" if it.get("date_hint") else ""
