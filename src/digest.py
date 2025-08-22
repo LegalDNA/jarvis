@@ -69,7 +69,7 @@ def build_markdown_digest(items: List[Dict], note: str | None = None) -> str:
     lines = ["# Jarvis Brief\n"]
     if note:
         lines.append(f"> {note}\n")
-    for it in sorted(items, key=lambda x: (PRIORITY_ORDER.get(x.get("importance","FYI"), 3), x.get("account",""))):
+    for it in sorted(items, key=lambda x: (PRIORITY_ORDER.get(it.get("importance","FYI"), 3), it.get("account",""))):
         line = f"- @{it['account']} [{it['importance']}] {it['url']}"
         if it.get("date_hint"):
             line += f" (Date: {it['date_hint']})"
@@ -82,4 +82,22 @@ def build_html_digest(items: List[Dict], note: str | None = None) -> str:
     if not items and not note:
         return f"<html><head><style>{CSS}</style></head><body><div class='title'>Jarvis Brief</div>No new posts from tracked accounts in the last 24h.</body></html>"
 
-    groups = {"Crit
+    groups = {"Critical": [], "Time-Sensitive": [], "FYI": []}
+    for it in items:
+        groups.get(it.get("importance","FYI"), groups["FYI"]).append(it)
+
+    html = [f"<html><head><style>{CSS}</style></head><body>"]
+    html.append("<div class='title'>Jarvis Brief</div>")
+    html.append("<div class='banner'>Tip: If the Google Calendar button opens the wrong account or isn’t supported in your client, use the attached <b>.ics</b> file to add events to any calendar.</div>")
+    if note:
+        html.append(f"<div class='banner'>{note}</div>")
+
+    for section in ["Critical", "Time-Sensitive", "FYI"]:
+        if not groups[section]:
+            continue
+        html.append(f"<div class='section'>{section}</div>")
+        for it in sorted(groups[section], key=lambda x: (x.get("account",""), x.get("date_hint",""))):
+            html.append(_card_html(it))
+
+    html.append("</body></html>")
+    return "".join(html)
