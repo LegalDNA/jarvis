@@ -32,5 +32,7 @@ jobs:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           TZ: America/Toronto
+          MAX_POSTS_PER_ACCOUNT: 5
+          LOOKBACK_DAYS: 5
         run: |
           python main.py
