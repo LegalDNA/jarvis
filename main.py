@@ -4,9 +4,9 @@ from src.scrape import fetch_new_posts
 from src.analyze import analyze_item
 from src.digest import build_markdown_digest, build_html_digest
 from src.send_email import send_email
-from src.ics import build_ics, build_per_event_ics, build_feed_ics
+from src.ics import build_ics, build_per_event_ics, build_invite_blocks
 from src.utils import load_json
-from src.config import SEEN_POSTS_PATH, DIST_EVENTS_DIR, DIST_FEED_DIR
+from src.config import SEEN_POSTS_PATH, GMAIL_ADDRESS, RECIPIENT_EMAIL
 
 try:
     from src.notion_push import push_to_notion
@@ -28,26 +28,15 @@ def run():
     analyzed = [analyze_item(it) for it in raw_items]
     print(f"[RUN] Analyzed items: {len(analyzed)}")
 
-    # Per-event ICS (attachments + hosted)
-    per_event = build_per_event_ics(analyzed)
-    attachments = []
-    for fname, data, _title in per_event:
-        out_path = os.path.join(DIST_EVENTS_DIR, fname)
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        with open(out_path, "wb") as f:
-            f.write(data)
-        attachments.append((fname, data, "text/calendar"))
+    # Build inline calendar invites (Gmail/Apple-native)
+    # Organizer = the sender address; Attendee = you (recipient)
+    invites = build_invite_blocks(analyzed, organizer_email=GMAIL_ADDRESS or "no-reply@example.com", attendee_email=RECIPIENT_EMAIL or "you@example.com")
 
-    # Combined ICS attachment
+    # Optional: also attach a combined .ics as backup (not required, but handy)
+    attachments = []
     combo_name, combo_bytes = build_ics(analyzed)
     if combo_name and combo_bytes:
         attachments.append((combo_name, combo_bytes, "text/calendar"))
-
-    # Build/update subscription feed (future events only)
-    feed_name, feed_bytes = build_feed_ics(analyzed)
-    feed_path = os.path.join(DIST_FEED_DIR, feed_name)
-    with open(feed_path, "wb") as f:
-        f.write(feed_bytes)
 
     seen_after = load_json(SEEN_POSTS_PATH, default={})
     print(f"[RUN] Seen after: {len(seen_after)} entries (+{len(seen_after) - len(seen_before)})")
@@ -60,7 +49,13 @@ def run():
     today = datetime.utcnow().strftime("%Y-%m-%d")
 
     print("[RUN] Sending email…")
-    send_email(subject=f"Jarvis Brief — {today}", html_body=html, text_body=md, attachments=attachments)
+    send_email(
+        subject=f"Jarvis Brief — {today}",
+        html_body=html,
+        text_body=md,
+        attachments=attachments,
+        invites=invites
+    )
 
     for it in analyzed:
         push_to_notion(it)
