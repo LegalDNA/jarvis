@@ -85,7 +85,7 @@ def fetch_new_posts(accounts_file: str):
                 rate_limited = True
                 continue
 
-        time.sleep(0.5)
+        time.sleep(1)
 
     save_json(SEEN_POSTS_PATH, seen)
     save_json(LAST_RUN_PATH, {"timestamp": datetime.utcnow().isoformat()})
