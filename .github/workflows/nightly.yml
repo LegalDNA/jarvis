@@ -5,12 +5,18 @@ on:
     - cron: '0 11 */2 * *'  # every 2 days at 11:00 UTC ≈ 07:00 Toronto
   workflow_dispatch: {}
 
+permissions:
+  contents: write  # required to commit seen_posts.json back to repo
+
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,7 +39,7 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           GCAL_AUTHUSER: ${{ secrets.GCAL_AUTHUSER }}
           TZ: America/Toronto
-          # keep these light to reduce IG throttling
+          # keep touch light to reduce IG throttling
           MAX_POSTS_PER_ACCOUNT: 6
           LOOKBACK_DAYS: 5
         run: |
