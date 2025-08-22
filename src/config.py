@@ -26,13 +26,15 @@ REPO_DATA_DIR = os.path.join(REPO_DIR, "data")
 SEEN_POSTS_PATH = os.path.join(REPO_DATA_DIR, "seen_posts.json")
 LAST_RUN_PATH = os.path.join(REPO_DATA_DIR, "last_run.json")
 
-# Where we'll write per-event ICS files
+# Where we'll write per-event ICS files + feed
 DIST_EVENTS_DIR = os.path.join(REPO_ROOT, "dist", "events")
+DIST_FEED_DIR = os.path.join(REPO_ROOT, "dist", "feed")
 os.makedirs(DIST_EVENTS_DIR, exist_ok=True)
+os.makedirs(DIST_FEED_DIR, exist_ok=True)
 
 def compute_raw_ics_base() -> str | None:
     if RAW_ICS_BASE:
         return RAW_ICS_BASE.rstrip("/")
     if GITHUB_REPOSITORY and GITHUB_REF_NAME:
-        return f"https://raw.githubusercontent.com/{GITHUB_REPOSITORY}/{GITHUB_REF_NAME}/dist/events"
+        return f"https://raw.githubusercontent.com/{GITHUB_REPOSITORY}/{GITHUB_REF_NAME}"
     return None
