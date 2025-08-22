@@ -1,0 +1,60 @@
+name: Jarvis IG Brief (Nightly)
+
+on:
+  schedule:
+    # ~7:05 AM Toronto during EDT
+    - cron: "5 11 * * *"
+    # ~7:05 AM Toronto during EST (winter)
+    - cron: "5 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-distilbart-cnn
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Jarvis
+        env:
+          IG_USERNAME: ${{ secrets.IG_USERNAME }}
+          IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_PAGE_ID: ${{ secrets.NOTION_PAGE_ID }}
+          MODEL_NAME: ${{ secrets.MODEL_NAME }}
+          LOOKBACK_DAYS: "1"
+          ACCOUNT_DELAY_SEC: "2"
+          SUM_MAX_TOKENS: "96"
+          SUM_MIN_TOKENS: "24"
+        run: python jarvis.py
+
+      - name: Commit report
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add reports/*.md || true
+            git commit -m "Daily brief: $(date -u +'%Y-%m-%d')"
+            git push
+          fi
