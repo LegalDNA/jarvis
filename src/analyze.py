@@ -6,14 +6,15 @@ from .utils import strip_emojis, squeeze_ws, truncate, find_dates, nearest_futur
 CRITICAL = [
     "deadline", "register", "registration", "apply", "application",
     "closes", "last day", "final day", "spots left", "limited spots", "rsvp",
-    "today only", "ends today"
+    "today only", "ends today", "tickets"
 ]
-TIMEY = ["event", "workshop", "seminar", "webinar", "orientation", "meeting", "tonight", "this week", "tomorrow", "today"]
+TIMEY = ["event", "workshop", "seminar", "webinar", "orientation", "meeting", "tonight", "this week", "tomorrow", "today", "info session", "boat cruise", "career fair", "case competition"]
 
 TIME_PAT = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s?(am|pm)\b", re.I)
 VENUE_PAT = re.compile(r"\b(room\s?[A-Z]?\d{1,4}|hall|auditorium|center|centre|building|lab|theatre|theater|atrium|lobby|boat|cruise|field|gym|court|campus)\b", re.I)
 URL_IN_BIO_PAT = re.compile(r"(link\s+in\s+bio)", re.I)
 SENT_SPLIT = re.compile(r'(?<=[.!?])\s+|\n+')
+TITLE_HINT_PAT = re.compile(r"(orientation|boat cruise|info session|workshop|seminar|webinar|career fair|case competition|tryouts|auditions|meeting|town hall)", re.I)
 
 def classify_importance(text: str) -> str:
     low = (text or "").lower()
@@ -29,50 +30,55 @@ def smart_summary(caption: str) -> str:
         return "(No caption)"
     parts = [p.strip() for p in SENT_SPLIT.split(cap) if p.strip()]
     scored = []
-    for p in parts[:8]:  # scan first 8 sentences
+    for p in parts[:8]:
         score = 0
         low = p.lower()
-        for w in ["register", "apply", "rsvp", "join", "sign up", "tickets", "deadline", "limited"]:
+        for w in ["register", "apply", "rsvp", "join", "sign up", "tickets", "deadline", "limited", "free"]:
             if w in low:
                 score += 2
-        if find_dates(p):
-            score += 2
-        if TIME_PAT.search(p):
-            score += 1
-        if "free" in low or "open" in low:
-            score += 1
+        if find_dates(p): score += 2
+        if TIME_PAT.search(p): score += 1
         scored.append((score, p))
     if not scored:
         return truncate(cap, 360)
     scored.sort(reverse=True, key=lambda x: (x[0], -len(x[1])))
-
-    # Take the top 2 distinct sentences for context
-    top_sentences = []
+    top = []
     seen = set()
     for _, s in scored:
         if s not in seen:
-            top_sentences.append(s)
+            top.append(s)
             seen.add(s)
-        if len(top_sentences) == 2:
+        if len(top) == 2:
             break
-
-    summary = " ".join(top_sentences)
-    return truncate(summary, 360)
+    return truncate(" ".join(top), 360)
 
 def _parse_time_to_hm(text: str) -> Optional[tuple]:
     m = TIME_PAT.search(text or "")
-    if not m:
-        return None
-    hour = int(m.group(1))
-    minute = int(m.group(2) or 0)
+    if not m: return None
+    hour = int(m.group(1)); minute = int(m.group(2) or 0)
     ampm = (m.group(3) or "").lower()
-    if ampm == "pm" and hour != 12:
-        hour += 12
-    if ampm == "am" and hour == 12:
-        hour = 0
+    if ampm == "pm" and hour != 12: hour += 12
+    if ampm == "am" and hour == 12: hour = 0
     return hour, minute
 
-def extract_event_fields(caption: str):
+def _event_title(account: str, caption: str, date_str: str, time_str: str) -> str:
+    """Hyper-specific title: '@Account — <Hint> (Mon DD, HH:MM)'"""
+    hint = ""
+    m = TITLE_HINT_PAT.search(caption or "")
+    if m:
+        hint = m.group(1).title()
+    else:
+        # fallback: first 5 words of summary-worthy sentence
+        cap = squeeze_ws(strip_emojis(caption or "")).strip()
+        words = cap.split()
+        hint = " ".join(words[:5]).strip().rstrip(",.:;") or "Event"
+        hint = hint.title()
+    when = date_str or ""
+    if time_str:
+        when = f"{when}, {time_str}"
+    return f"@{account} — {hint}" + (f" ({when})" if when else "")
+
+def extract_event_fields(caption: str, account: str):
     cap = caption or ""
     date_hits = find_dates(cap)
     date_obj = nearest_future(date_hits) if date_hits else None
@@ -85,8 +91,7 @@ def extract_event_fields(caption: str):
 
     link_bio = bool(URL_IN_BIO_PAT.search(cap))
 
-    start_dt = None
-    end_dt = None
+    start_dt = end_dt = None
     if date_obj:
         if hm:
             start_dt = date_obj.replace(hour=hm[0], minute=hm[1], second=0, microsecond=0)
@@ -94,13 +99,17 @@ def extract_event_fields(caption: str):
             start_dt = date_obj.replace(hour=9, minute=0, second=0, microsecond=0)
         end_dt = start_dt + timedelta(hours=1)
 
-    return date_obj, time_text, venue_text, link_bio, start_dt, end_dt
+    date_hint = date_obj.strftime("%b %d") if date_obj else ""
+    event_title = _event_title(account, cap, date_hint, time_text)
+
+    return date_obj, time_text, venue_text, link_bio, start_dt, end_dt, event_title
 
 def analyze_item(item: Dict) -> Dict:
     cap = item.get("caption", "") or ""
+    account = item.get("account", "")
     summary = smart_summary(cap)
     importance = classify_importance(cap)
-    date_obj, time_text, venue_text, link_bio, start_dt, end_dt = extract_event_fields(cap)
+    date_obj, time_text, venue_text, link_bio, start_dt, end_dt, event_title = extract_event_fields(cap, account)
 
     return {
         **item,
@@ -112,4 +121,5 @@ def analyze_item(item: Dict) -> Dict:
         "link_in_bio": link_bio,
         "start_fmt": start_dt.strftime("%Y%m%dT%H%M%S") if start_dt else "",
         "end_fmt": end_dt.strftime("%Y%m%dT%H%M%S") if end_dt else "",
+        "event_title": event_title,
     }
