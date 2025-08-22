@@ -69,7 +69,8 @@ def build_markdown_digest(items: List[Dict], note: str | None = None) -> str:
     lines = ["# Jarvis Brief\n"]
     if note:
         lines.append(f"> {note}\n")
-    for it in sorted(items, key=lambda x: (PRIORITY_ORDER.get(it.get("importance","FYI"), 3), it.get("account",""))):
+    # FIX: use `x` inside the lambda
+    for it in sorted(items, key=lambda x: (PRIORITY_ORDER.get(x.get("importance","FYI"), 3), x.get("account",""))):
         line = f"- @{it['account']} [{it['importance']}] {it['url']}"
         if it.get("date_hint"):
             line += f" (Date: {it['date_hint']})"
