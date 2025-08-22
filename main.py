@@ -4,11 +4,12 @@ from src.scrape import fetch_new_posts
 from src.analyze import analyze_item
 from src.digest import build_markdown_digest, build_html_digest
 from src.send_email import send_email
+from src.ics import build_ics
 
 try:
     from src.notion_push import push_to_notion
 except Exception:
-    def push_to_notion(*args, **kwargs):  # no-op
+    def push_to_notion(*args, **kwargs):
         return
 
 ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "accounts.txt")
@@ -23,17 +24,20 @@ def run():
     analyzed = [analyze_item(it) for it in raw_items]
     print(f"[RUN] Analyzed items: {len(analyzed)}")
 
-    note = None
-    if rate_limited:
-        note = "Instagram rate-limited some accounts this run; results may be partial."
+    note = "Instagram rate-limited some accounts this run; results may be partial." if rate_limited else None
 
     print("[RUN] Building digest…")
     md = build_markdown_digest(analyzed, note=note)
     html = build_html_digest(analyzed, note=note)
     today = datetime.utcnow().strftime("%Y-%m-%d")
 
+    fname, ics_bytes = build_ics(analyzed)
+    attachments = []
+    if fname and ics_bytes:
+        attachments.append((fname, ics_bytes, "text/calendar"))
+
     print("[RUN] Sending email…")
-    send_email(subject=f"Jarvis Brief — {today}", html_body=html, text_body=md)
+    send_email(subject=f"Jarvis Brief — {today}", html_body=html, text_body=md, attachments=attachments)
 
     for it in analyzed:
         push_to_notion(it)
