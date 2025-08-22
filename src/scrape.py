@@ -10,7 +10,6 @@ from .config import SEEN_POSTS_PATH, LAST_RUN_PATH, IG_USERNAME, IG_PASSWORD
 
 POST_URL = "https://www.instagram.com/p/{shortcode}/"
 
-# Limits to avoid throttling
 MAX_POSTS_PER_ACCOUNT = int(os.getenv("MAX_POSTS_PER_ACCOUNT", "5"))
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "5"))
 
@@ -61,11 +60,9 @@ def fetch_new_posts(accounts_file: str):
         try:
             profile = instaloader.Profile.from_username(L.context, username)
         except Exception:
-            # Could be 401 or profile blockage; mark as rate-limited and continue
             rate_limited = True
             continue
 
-        count = 0
         for post in islice(_safe_iter_posts(profile), MAX_POSTS_PER_ACCOUNT):
             try:
                 sc = getattr(post, "shortcode", None)
@@ -84,9 +81,7 @@ def fetch_new_posts(accounts_file: str):
                 }
                 new_items.append(item)
                 seen[sc] = True
-                count += 1
             except Exception:
-                # GraphQL / throttling mid-iteration
                 rate_limited = True
                 continue
 
