@@ -31,6 +31,7 @@ jobs:
           IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GCAL_AUTHUSER: ${{ secrets.GCAL_AUTHUSER }}
           TZ: America/Toronto
           MAX_POSTS_PER_ACCOUNT: 5
           LOOKBACK_DAYS: 5
