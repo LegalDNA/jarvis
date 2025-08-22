@@ -2,16 +2,14 @@ import os
 from datetime import datetime
 from src.scrape import fetch_new_posts
 from src.analyze import analyze_item
-from src.digest import build_markdown_digest, md_to_html
+from src.digest import build_markdown_digest, build_html_digest
 from src.send_email import send_email
 
-# --- Optional Notion support (safe import) ---
 try:
     from src.notion_push import push_to_notion
 except Exception:
     def push_to_notion(*args, **kwargs):  # no-op
         return
-# --------------------------------------------
 
 ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "accounts.txt")
 
@@ -26,13 +24,12 @@ def run():
 
     print("[RUN] Building digest…")
     md = build_markdown_digest(analyzed)
-    html = md_to_html(md)
+    html = build_html_digest(analyzed)
     today = datetime.utcnow().strftime("%Y-%m-%d")
 
     print("[RUN] Sending email…")
     send_email(subject=f"Jarvis Brief — {today}", html_body=html, text_body=md)
 
-    # Optional: push to Notion
     for it in analyzed:
         push_to_notion(it)
 
