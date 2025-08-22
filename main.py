@@ -15,16 +15,21 @@ ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "accounts.txt")
 
 def run():
     print("[RUN] Fetching posts…")
-    raw_items = fetch_new_posts(ACCOUNTS_FILE)
-    print(f"[RUN] Raw items fetched: {len(raw_items)}")
+    raw_items, meta = fetch_new_posts(ACCOUNTS_FILE)
+    rate_limited = meta.get("rate_limited", False)
+    print(f"[RUN] Raw items fetched: {len(raw_items)} | rate_limited={rate_limited}")
 
     print("[RUN] Analyzing items…")
     analyzed = [analyze_item(it) for it in raw_items]
     print(f"[RUN] Analyzed items: {len(analyzed)}")
 
+    note = None
+    if rate_limited:
+        note = "Instagram rate-limited some accounts this run; results may be partial."
+
     print("[RUN] Building digest…")
-    md = build_markdown_digest(analyzed)
-    html = build_html_digest(analyzed)
+    md = build_markdown_digest(analyzed, note=note)
+    html = build_html_digest(analyzed, note=note)
     today = datetime.utcnow().strftime("%Y-%m-%d")
 
     print("[RUN] Sending email…")
