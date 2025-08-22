@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # required to commit seen_posts.json back to repo
+  contents: write  # required to commit state and ICS files
 
 jobs:
   run:
@@ -39,16 +39,19 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           GCAL_AUTHUSER: ${{ secrets.GCAL_AUTHUSER }}
           TZ: America/Toronto
-          # keep touch light to reduce IG throttling
           MAX_POSTS_PER_ACCOUNT: 6
           LOOKBACK_DAYS: 5
+          # provide branch/repo for raw ICS links
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           python main.py
 
-      - name: Commit state (seen posts)
+      - name: Commit state (seen + ICS)
         run: |
           git config user.email "actions@users.noreply.github.com"
           git config user.name "github-actions"
           git add src/data/*.json || true
-          git commit -m "Update seen posts state" || echo "No changes"
+          git add dist/events/*.ics || true
+          git commit -m "Update state and ICS files" || echo "No changes"
           git push || echo "No push"
