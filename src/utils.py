@@ -40,21 +40,41 @@ def truncate(s: str, n: int) -> str:
     s = s or ""
     return s if len(s) <= n else s[:n-1].rstrip() + "…"
 
+def _to_naive(dt):
+    """Force datetime to be timezone-naive (strip tzinfo safely)."""
+    try:
+        if dt.tzinfo is not None:
+            # Convert to local time then drop tzinfo
+            return dt.astimezone().replace(tzinfo=None)
+    except Exception:
+        pass
+    return dt
+
 def find_dates(text: str, base=None):
-    """Return list of (text, dt) timezone-naive; we’ll display only."""
+    """Return list of (text, naive_dt)."""
     if not text:
         return []
     try:
-        return search_dates(text, settings={"PREFER_DATES_FROM": "future"}, languages=["en"]) or []
+        hits = search_dates(
+            text,
+            settings={
+                "PREFER_DATES_FROM": "future",
+                "RETURN_AS_TIMEZONE_AWARE": True,
+            },
+            languages=["en"],
+        ) or []
+        return [(frag, _to_naive(dt)) for (frag, dt) in hits]
     except Exception:
         return []
 
 def nearest_future(dts):
-    """Pick the nearest future datetime from a list of parsed date results."""
-    now = datetime.now()
-    future = [dt for (_, dt) in dts if dt >= now]
-    if future:
-        return min(future)
-    # else fallback: any date, choose max
-    anyd = [dt for (_, dt) in dts]
-    return max(anyd) if anyd else None
+    """Pick the nearest future naive datetime from list of (frag, dt)."""
+    now = datetime.now()  # naive
+    try:
+        future = [dt for (_, dt) in dts if _to_naive(dt) >= now]
+        if future:
+            return min(future)
+        anyd = [_to_naive(dt) for (_, dt) in dts]
+        return max(anyd) if anyd else None
+    except Exception:
+        return None
