@@ -3,6 +3,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from email.header import Header
+from email.utils import formataddr
 
 from .config import GMAIL_ADDRESS, GMAIL_APP_PASSWORD, RECIPIENT_EMAIL
 
@@ -12,16 +14,17 @@ def _attach_calendar_invite(msg: MIMEMultipart, fname: str, data: bytes):
     Gmail/Apple will render native Add-to-Calendar UI.
     """
     part = MIMEBase('text', 'calendar', name=fname)
-    part.set_payload(data)                 # keep as 8bit (most clients handle fine)
-    # Headers that help Gmail/Apple/Outlook recognize invites
-    part.add_header('Content-Type', 'text/calendar; method=REQUEST; charset=UTF-8; name="{}"'.format(fname))
-    part.add_header('Content-Disposition', 'inline; filename="{}"'.format(fname))
+    # keep raw bytes; mark headers so clients treat it as an invite
+    part.set_payload(data)
+    part.add_header('Content-Type', f'text/calendar; method=REQUEST; charset=UTF-8; name="{fname}"')
+    part.add_header('Content-Disposition', f'inline; filename="{fname}"')
     part.add_header('Content-Transfer-Encoding', '8bit')
     part.add_header('Content-Class', 'urn:content-classes:calendarmessage')
     msg.attach(part)
 
 def _attach_file(msg: MIMEMultipart, fname: str, data: bytes, mime: str):
-    part = MIMEBase(*mime.split('/'), name=fname)
+    maintype, subtype = mime.split('/', 1)
+    part = MIMEBase(maintype, subtype, name=fname)
     part.set_payload(data)
     encoders.encode_base64(part)
     part.add_header('Content-Disposition', f'attachment; filename="{fname}"')
@@ -45,29 +48,32 @@ def send_email(subject: str, html_body: str, text_body: str = None, attachments=
 
     # Outer container
     msg = MIMEMultipart('mixed')
-    msg['From'] = GMAIL_ADDRESS
-    msg['To'] = RECIPIENT_EMAIL
-    msg['Subject'] = subject
 
-    # Pretty digest (HTML + optional plaintext)
+    # Ensure UTF-8 headers (prevents 'ascii' codec errors on em-dash, accents, etc.)
+    msg['From'] = formataddr((str(Header("", 'utf-8')), GMAIL_ADDRESS))
+    msg['To'] = formataddr((str(Header("", 'utf-8')), RECIPIENT_EMAIL))
+    msg['Subject'] = str(Header(subject, 'utf-8'))
+
+    # Pretty digest (HTML + optional plaintext) in alternative part
     alt = MIMEMultipart('alternative')
     if text_body:
         alt.attach(MIMEText(text_body, 'plain', 'utf-8'))
     alt.attach(MIMEText(html_body, 'html', 'utf-8'))
     msg.attach(alt)
 
-    # Inline calendar invites
-    for (fname, data) in invites:
+    # Inline calendar invites (Gmail/Apple-native “Add to Calendar” UI)
+    for (fname, data) in invites or []:
         _attach_calendar_invite(msg, fname, data)
 
     # Optional regular attachments (e.g., combined .ics backup)
-    for (fname, data, mime) in attachments:
+    for (fname, data, mime) in attachments or []:
         _attach_file(msg, fname, data, mime)
 
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.set_debuglevel(1)
+            server.set_debuglevel(1)  # log SMTP convo
             server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+            # Use as_string() now that headers are UTF-8 encoded
             server.sendmail(GMAIL_ADDRESS, [RECIPIENT_EMAIL], msg.as_string())
         print("[EMAIL] Sent successfully.")
     except Exception as e:
