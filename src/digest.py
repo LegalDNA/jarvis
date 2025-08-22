@@ -1,120 +1,127 @@
-from typing import List, Dict, Optional
-from urllib.parse import quote
-from .config import GCAL_AUTHUSER, compute_raw_ics_base
+from typing import List, Dict
+from datetime import datetime, timedelta
 
 PRIORITY_ORDER = {"Critical": 0, "Time-Sensitive": 1, "FYI": 2}
 
 CSS = """
-  body { font-family: Arial, Helvetica, sans-serif; color:#111; }
-  .title { font-size:20px; font-weight:700; margin:0 0 12px; }
-  .banner { background:#fff8e1; border:1px solid #ffe082; padding:10px; border-radius:6px; margin:10px 0; }
-  .section { margin:18px 0 10px; font-weight:700; font-size:16px; }
-  .card {
-    border:1px solid #eee; border-radius:8px; padding:12px; margin:10px 0;
-    background:#fff;
-  }
-  .meta { color:#444; font-size:13px; margin:4px 0; }
-  .sum { margin:6px 0 10px; }
-  .btn {
-    display:inline-block; padding:8px 12px; border-radius:6px; text-decoration:none;
-    background:#0b57d0; color:#fff; font-weight:600; margin-right:8px;
-  }
-  .btn.secondary { background:#2f855a; }
-  .btn.gray { background:#6b7280; }
-  .account { color:#666; font-size:12px; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#0f172a; }
+  .title { font-size:20px; font-weight:800; margin:0 0 12px; }
+  .section { margin:22px 0 6px; font-weight:800; font-size:15px; text-transform:uppercase; letter-spacing:0.5px; color:#334155; }
+  .card { border:1px solid #e5e7eb; border-radius:10px; padding:12px; margin:10px 0; background:#ffffff; }
+  .meta { color:#475569; font-size:13px; margin:3px 0; }
+  .sum { margin:8px 0 6px; line-height:1.35; }
+  .k { font-weight:700; color:#0f172a; }
+  .account { color:#64748b; font-size:12px; margin-bottom:6px; }
+  .pill { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; margin-left:6px; }
+  .btn { display:inline-block; padding:8px 12px; border-radius:8px; text-decoration:none; background:#0b57d0; color:#fff; font-weight:600; }
 """
 
-def _gcal_url(it: Dict) -> str:
-    start = it.get("start_fmt", ""); end = it.get("end_fmt", "")
-    if not (start and end): return ""
-    text = it.get("event_title") or f"@{it.get('account','')} — Instagram event"
-    details = f"{it.get('summary','')}\n\nPost: {it.get('url','#')}"
-    location = it.get("venue_hint","")
-    base = "https://calendar.google.com/calendar/render?action=TEMPLATE"
-    url = (
-        f"{base}&text={quote(text)}&dates={quote(start + '/' + end)}"
-        f"&details={quote(details)}"
-        f"&location={quote(location)}"
-        f"&ctz=America/Toronto&pli=1"
-    )
-    if GCAL_AUTHUSER:
-        url += f"&authuser={quote(GCAL_AUTHUSER)}"
-    return url
+def _parse_start_date(it: Dict):
+    sf = it.get("start_fmt", "")
+    if not sf:
+        return None
+    try:
+        return datetime.strptime(sf, "%Y%m%dT%H%M%S")
+    except Exception:
+        return None
 
-def _ics_link(it: Dict, raw_root: Optional[str]) -> Optional[str]:
-    if not raw_root or not it.get("start_fmt"): return None
-    # per-event file path: /dist/events/event-<shortcode>.ics
-    return f"{raw_root}/dist/events/event-{it.get('shortcode','')}.ics"
+def _bucket_label(dt: datetime | None) -> str:
+    if dt is None:
+        return "Upcoming"  # unknown date → bottom group
+    today = datetime.now().date()
+    d = dt.date()
+    if d == today:
+        return "Today"
+    if 0 < (d - today).days <= 7:
+        return "This Week"
+    return "Upcoming"
 
-def _feed_link(raw_root: Optional[str]) -> Optional[str]:
-    # feed file path: /dist/feed/upcoming.ics
-    return f"{raw_root}/dist/feed/upcoming.ics" if raw_root else None
+def _when_line(it: Dict) -> str:
+    datep = it.get("date_hint","")
+    timep = it.get("time_hint","")
+    if datep and timep:
+        return f"{datep} @ {timep}"
+    return datep or timep or "TBD"
 
-def _card_html(it: Dict, raw_root: Optional[str]) -> str:
-    date_line = f"<div class='meta'><b>Date:</b> {it.get('date_hint','')}</div>" if it.get("date_hint") else ""
-    time_line = f"<div class='meta'><b>Time:</b> {it.get('time_hint','')}</div>" if it.get("time_hint") else ""
-    venue_line = f"<div class='meta'><b>Venue:</b> {it.get('venue_hint','').title()}</div>" if it.get("venue_hint") else ""
-    cta_line = "<div class='meta'><b>Action:</b> Check link in bio</div>" if it.get("link_in_bio") else ""
+def _action_line(it: Dict) -> str:
+    if it.get("url_found"):
+        return f"Use link: {it['url_found']}"
+    if it.get("link_in_bio"):
+        return "Link in bio"
+    return "See post"
+
+def _card_html(it: Dict) -> str:
     account = it.get("account","")
     url = it.get("url","#")
     importance = it.get("importance","FYI")
-    gcal = _gcal_url(it)
-    ics_url = _ics_link(it, raw_root)
+    when = _when_line(it)
+    where = it.get("venue_hint","")
+    price = it.get("price_hint","")
+    contact = it.get("contact_hint","")
+    title = it.get("event_title","Event")
 
-    gcal_btn = f"<a class='btn' href=\"{gcal}\">Add to Google Calendar</a>" if gcal else ""
-    ics_btn = f"<a class='btn secondary' href=\"{ics_url}\">Apple/Outlook (.ics)</a>" if ics_url else ""
-    open_btn = f"<a class='btn gray' href=\"{url}\">Open Post</a>"
-
-    title_line = f"<div class='sum'><b>{it.get('event_title','Event')}</b><br>{it.get('summary','')}</div>"
+    rows = [
+        f"<div class='meta'><span class='k'>What:</span> {title}</div>",
+        f"<div class='meta'><span class='k'>When:</span> {when}</div>",
+    ]
+    if where:
+        rows.append(f"<div class='meta'><span class='k'>Where:</span> {where.title()}</div>")
+    if price:
+        rows.append(f"<div class='meta'><span class='k'>Cost:</span> {price}</div>")
+    action = _action_line(it)
+    rows.append(f"<div class='meta'><span class='k'>Action:</span> {action}</div>")
+    if contact:
+        rows.append(f"<div class='meta'><span class='k'>Contact:</span> {contact}</div>")
 
     return f"""
       <div class="card">
-        <div class="account">@{account} • <b>{importance}</b></div>
-        {date_line}{time_line}{venue_line}{cta_line}
-        {title_line}
-        {gcal_btn}{ics_btn}{open_btn}
+        <div class="account">@{account} <span class="pill">{importance}</span></div>
+        {' '.join(rows)}
+        <div class="sum">{it.get('summary','')}</div>
+        <a class="btn" href="{url}">Open Post</a>
       </div>
     """
 
 def build_markdown_digest(items: List[Dict], note: str | None = None) -> str:
+    # Plaintext fallback (kept simple)
     if not items and not note:
-        return "# Jarvis Brief\n\nNo new posts from tracked accounts in the last 24h."
+        return "# Jarvis Brief\n\nNo new posts."
     lines = ["# Jarvis Brief\n"]
-    if note:
-        lines.append(f"> {note}\n")
+    if note: lines.append(f"> {note}\n")
     for it in sorted(items, key=lambda x: (PRIORITY_ORDER.get(x.get("importance","FYI"), 3), x.get("account",""))):
-        line = f"- @{it['account']} [{it['importance']}] {it['url']}"
-        if it.get("date_hint"):
-            line += f" (Date: {it['date_hint']})"
-        if it.get("time_hint"):
-            line += f" (Time: {it['time_hint']})"
-        lines.append(line)
+        when = _when_line(it)
+        lines.append(f"- @{it['account']} [{it['importance']}] {it.get('event_title','Event')} — {when} — {it['url']}")
     return "\n".join(lines)
 
 def build_html_digest(items: List[Dict], note: str | None = None) -> str:
-    raw_root = compute_raw_ics_base()
     if not items and not note:
-        return f"<html><head><style>{CSS}</style></head><body><div class='title'>Jarvis Brief</div>No new posts from tracked accounts in the last 24h.</body></html>"
+        return f"<html><head><style>{CSS}</style></head><body><div class='title'>Jarvis Brief</div>No new posts.</body></html>"
 
-    groups = {"Critical": [], "Time-Sensitive": [], "FYI": []}
+    # Group into Today / This Week / Upcoming by start date (unknown → Upcoming)
+    buckets = {"Today": [], "This Week": [], "Upcoming": []}
     for it in items:
-        groups.get(it.get("importance","FYI"), groups["FYI"]).append(it)
-
-    feed_url = _feed_link(raw_root)
+        buckets[_bucket_label(_parse_start_date(it))].append(it)
 
     html = [f"<html><head><style>{CSS}</style></head><body>"]
     html.append("<div class='title'>Jarvis Brief</div>")
-    if feed_url:
-        html.append(f"<div class='banner'>One-time setup: <a class='btn' href='{feed_url}'>Subscribe to Jarvis Events (.ics)</a> <span style='font-size:12px;color:#444'>&nbsp;Google Calendar → Add from URL; Apple Calendar → New Calendar Subscription.</span></div>")
     if note:
-        html.append(f"<div class='banner'>{note}</div>")
+        html.append(f"<div class='section' style='text-transform:none;color:#334155;background:#f1f5f9;padding:8px;border-radius:8px'>{note}</div>")
 
-    for section in ["Critical", "Time-Sensitive", "FYI"]:
-        if not groups[section]:
-            continue
+    # Within each section, sort by (priority, date, account)
+    for section in ["Today", "This Week", "Upcoming"]:
+        group = buckets[section]
+        if not group: continue
         html.append(f"<div class='section'>{section}</div>")
-        for it in sorted(groups[section], key=lambda x: (x.get("account",""), x.get("date_hint",""))):
-            html.append(_card_html(it, raw_root))
+        group_sorted = sorted(
+            group,
+            key=lambda x: (
+                PRIORITY_ORDER.get(x.get("importance","FYI"), 3),
+                x.get("start_fmt","99999999999999"),
+                x.get("account",""),
+            )
+        )
+        for it in group_sorted:
+            html.append(_card_html(it))
 
     html.append("</body></html>")
     return "".join(html)
