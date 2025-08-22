@@ -1,9 +1,6 @@
 uoft
-uoftalumni
 uoftmississauga
-uoftstudentlife
 uoftcfe
-uoftlaw
 uoftstartup
 uoft_mocktrial
 epa_utm
