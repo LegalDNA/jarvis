@@ -35,7 +35,7 @@ def _gcal_url(it: Dict) -> str:
         f"{base}&text={quote(text)}&dates={quote(start + '/' + end)}"
         f"&details={quote(details)}"
         f"&location={quote(location)}"
-        f"&ctz=America/Toronto"
+        f"&ctz=America/Toronto&pli=1"
     )
     if GCAL_AUTHUSER:
         url += f"&authuser={quote(GCAL_AUTHUSER)}"
@@ -82,21 +82,4 @@ def build_html_digest(items: List[Dict], note: str | None = None) -> str:
     if not items and not note:
         return f"<html><head><style>{CSS}</style></head><body><div class='title'>Jarvis Brief</div>No new posts from tracked accounts in the last 24h.</body></html>"
 
-    groups = {"Critical": [], "Time-Sensitive": [], "FYI": []}
-    for it in items:
-        groups.get(it.get("importance","FYI"), groups["FYI"]).append(it)
-
-    html = [f"<html><head><style>{CSS}</style></head><body>"]
-    html.append("<div class='title'>Jarvis Brief</div>")
-    if note:
-        html.append(f"<div class='banner'>{note}</div>")
-
-    for section in ["Critical", "Time-Sensitive", "FYI"]:
-        if not groups[section]:
-            continue
-        html.append(f"<div class='section'>{section}</div>")
-        for it in sorted(groups[section], key=lambda x: (x.get("account",""), x.get("date_hint",""))):
-            html.append(_card_html(it))
-
-    html.append("</body></html>")
-    return "".join(html)
+    groups = {"Crit
