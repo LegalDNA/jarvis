@@ -20,6 +20,7 @@ CSS = """
     background:#0b57d0; color:#fff; font-weight:600; margin-right:8px;
   }
   .btn.secondary { background:#2f855a; }
+  .btn.gray { background:#6b7280; }
   .account { color:#666; font-size:12px; }
 """
 
@@ -40,12 +41,16 @@ def _gcal_url(it: Dict) -> str:
         url += f"&authuser={quote(GCAL_AUTHUSER)}"
     return url
 
-def _ics_link(it: Dict, raw_base: Optional[str]) -> Optional[str]:
-    if not raw_base or not it.get("start_fmt"): return None
-    fname = f"event-{it.get('shortcode','')}.ics"
-    return f"{raw_base}/{fname}"
+def _ics_link(it: Dict, raw_root: Optional[str]) -> Optional[str]:
+    if not raw_root or not it.get("start_fmt"): return None
+    # per-event file path: /dist/events/event-<shortcode>.ics
+    return f"{raw_root}/dist/events/event-{it.get('shortcode','')}.ics"
 
-def _card_html(it: Dict, raw_base: Optional[str]) -> str:
+def _feed_link(raw_root: Optional[str]) -> Optional[str]:
+    # feed file path: /dist/feed/upcoming.ics
+    return f"{raw_root}/dist/feed/upcoming.ics" if raw_root else None
+
+def _card_html(it: Dict, raw_root: Optional[str]) -> str:
     date_line = f"<div class='meta'><b>Date:</b> {it.get('date_hint','')}</div>" if it.get("date_hint") else ""
     time_line = f"<div class='meta'><b>Time:</b> {it.get('time_hint','')}</div>" if it.get("time_hint") else ""
     venue_line = f"<div class='meta'><b>Venue:</b> {it.get('venue_hint','').title()}</div>" if it.get("venue_hint") else ""
@@ -54,17 +59,19 @@ def _card_html(it: Dict, raw_base: Optional[str]) -> str:
     url = it.get("url","#")
     importance = it.get("importance","FYI")
     gcal = _gcal_url(it)
-    ics_url = _ics_link(it, raw_base)
+    ics_url = _ics_link(it, raw_root)
 
     gcal_btn = f"<a class='btn' href=\"{gcal}\">Add to Google Calendar</a>" if gcal else ""
     ics_btn = f"<a class='btn secondary' href=\"{ics_url}\">Apple/Outlook (.ics)</a>" if ics_url else ""
-    open_btn = f"<a class='btn' href=\"{url}\">Open Post</a>"
+    open_btn = f"<a class='btn gray' href=\"{url}\">Open Post</a>"
+
+    title_line = f"<div class='sum'><b>{it.get('event_title','Event')}</b><br>{it.get('summary','')}</div>"
 
     return f"""
       <div class="card">
         <div class="account">@{account} • <b>{importance}</b></div>
         {date_line}{time_line}{venue_line}{cta_line}
-        <div class="sum"><b>{it.get('event_title','Event')}</b><br>{it.get('summary','')}</div>
+        {title_line}
         {gcal_btn}{ics_btn}{open_btn}
       </div>
     """
@@ -85,7 +92,7 @@ def build_markdown_digest(items: List[Dict], note: str | None = None) -> str:
     return "\n".join(lines)
 
 def build_html_digest(items: List[Dict], note: str | None = None) -> str:
-    raw_base = compute_raw_ics_base()
+    raw_root = compute_raw_ics_base()
     if not items and not note:
         return f"<html><head><style>{CSS}</style></head><body><div class='title'>Jarvis Brief</div>No new posts from tracked accounts in the last 24h.</body></html>"
 
@@ -93,9 +100,12 @@ def build_html_digest(items: List[Dict], note: str | None = None) -> str:
     for it in items:
         groups.get(it.get("importance","FYI"), groups["FYI"]).append(it)
 
+    feed_url = _feed_link(raw_root)
+
     html = [f"<html><head><style>{CSS}</style></head><body>"]
     html.append("<div class='title'>Jarvis Brief</div>")
-    html.append("<div class='banner'>Tip: If the Google Calendar button opens the wrong account or isn’t supported, use the <b>.ics</b> button (Apple/Outlook) — or the attached combined .ics.</div>")
+    if feed_url:
+        html.append(f"<div class='banner'>One-time setup: <a class='btn' href='{feed_url}'>Subscribe to Jarvis Events (.ics)</a> <span style='font-size:12px;color:#444'>&nbsp;Google Calendar → Add from URL; Apple Calendar → New Calendar Subscription.</span></div>")
     if note:
         html.append(f"<div class='banner'>{note}</div>")
 
@@ -104,7 +114,7 @@ def build_html_digest(items: List[Dict], note: str | None = None) -> str:
             continue
         html.append(f"<div class='section'>{section}</div>")
         for it in sorted(groups[section], key=lambda x: (x.get("account",""), x.get("date_hint",""))):
-            html.append(_card_html(it, raw_base))
+            html.append(_card_html(it, raw_root))
 
     html.append("</body></html>")
     return "".join(html)
