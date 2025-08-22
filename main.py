@@ -5,6 +5,8 @@ from src.analyze import analyze_item
 from src.digest import build_markdown_digest, build_html_digest
 from src.send_email import send_email
 from src.ics import build_ics
+from src.utils import load_json
+from src.config import SEEN_POSTS_PATH
 
 try:
     from src.notion_push import push_to_notion
@@ -15,6 +17,10 @@ except Exception:
 ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "accounts.txt")
 
 def run():
+    # Log current seen state size
+    seen_before = load_json(SEEN_POSTS_PATH, default={})
+    print(f"[RUN] Seen before: {len(seen_before)} entries")
+
     print("[RUN] Fetching posts…")
     raw_items, meta = fetch_new_posts(ACCOUNTS_FILE)
     rate_limited = meta.get("rate_limited", False)
@@ -23,6 +29,10 @@ def run():
     print("[RUN] Analyzing items…")
     analyzed = [analyze_item(it) for it in raw_items]
     print(f"[RUN] Analyzed items: {len(analyzed)}")
+
+    # Log seen state after fetch (the scraper marks newly seen)
+    seen_after = load_json(SEEN_POSTS_PATH, default={})
+    print(f"[RUN] Seen after: {len(seen_after)} entries (+{len(seen_after) - len(seen_before)})")
 
     note = "Instagram rate-limited some accounts this run; results may be partial." if rate_limited else None
 
