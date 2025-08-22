@@ -1,10 +1,12 @@
 from typing import List, Dict
+from urllib.parse import quote
 
 PRIORITY_ORDER = {"Critical": 0, "Time-Sensitive": 1, "FYI": 2}
 
 CSS = """
   body { font-family: Arial, Helvetica, sans-serif; color:#111; }
   .title { font-size:20px; font-weight:700; margin:0 0 12px; }
+  .banner { background:#fff8e1; border:1px solid #ffe082; padding:10px; border-radius:6px; margin:10px 0; }
   .section { margin:18px 0 10px; font-weight:700; font-size:16px; }
   .card {
     border:1px solid #eee; border-radius:8px; padding:12px; margin:10px 0;
@@ -14,10 +16,26 @@ CSS = """
   .sum { margin:6px 0 10px; }
   .btn {
     display:inline-block; padding:8px 12px; border-radius:6px; text-decoration:none;
-    background:#0b57d0; color:#fff; font-weight:600;
+    background:#0b57d0; color:#fff; font-weight:600; margin-right:8px;
   }
   .account { color:#666; font-size:12px; }
 """
+
+def _gcal_url(it: Dict) -> str:
+    """Generate a Google Calendar template URL if start/end available."""
+    start = it.get("start_fmt", "")
+    end = it.get("end_fmt", "")
+    if not (start and end):
+        return ""
+    text = f"@{it.get('account','')} — Instagram event"
+    details = f"{it.get('summary','')}\n\nPost: {it.get('url','#')}"
+    location = it.get("venue_hint","")
+    base = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+    return (
+        f"{base}&text={quote(text)}&dates={quote(start + '/' + end)}"
+        f"&details={quote(details)}"
+        f"&location={quote(location)}"
+    )
 
 def _card_html(it: Dict) -> str:
     date_line = f"<div class='meta'><b>Date:</b> {it.get('date_hint','')}</div>" if it.get("date_hint") else ""
@@ -27,23 +45,26 @@ def _card_html(it: Dict) -> str:
     account = it.get("account","")
     url = it.get("url","#")
     importance = it.get("importance","FYI")
+    gcal = _gcal_url(it)
+
+    add_btn = f"<a class='btn' href=\"{gcal}\">Add to Google Calendar</a>" if gcal else ""
+    open_btn = f"<a class='btn' href=\"{url}\">Open Post</a>"
 
     return f"""
       <div class="card">
         <div class="account">@{account} • <b>{importance}</b></div>
         {date_line}{time_line}{venue_line}{cta_line}
         <div class="sum">{it.get('summary','')}</div>
-        <a class="btn" href="{url}">Open Post</a>
+        {add_btn}{open_btn}
       </div>
     """
 
-def build_markdown_digest(items: List[Dict]) -> str:
-    # Keep for plaintext fallback (not used for formatting anymore)
-    if not items:
+def build_markdown_digest(items: List[Dict], note: str | None = None) -> str:
+    if not items and not note:
         return "# Jarvis Brief\n\nNo new posts from tracked accounts in the last 24h."
-
-    # Plain text summary
     lines = ["# Jarvis Brief\n"]
+    if note:
+        lines.append(f"> {note}\n")
     for it in sorted(items, key=lambda x: (PRIORITY_ORDER.get(x.get("importance","FYI"), 3), x.get("account",""))):
         line = f"- @{it['account']} [{it['importance']}] {it['url']}"
         if it.get("date_hint"):
@@ -53,17 +74,18 @@ def build_markdown_digest(items: List[Dict]) -> str:
         lines.append(line)
     return "\n".join(lines)
 
-def build_html_digest(items: List[Dict]) -> str:
-    if not items:
+def build_html_digest(items: List[Dict], note: str | None = None) -> str:
+    if not items and not note:
         return f"<html><head><style>{CSS}</style></head><body><div class='title'>Jarvis Brief</div>No new posts from tracked accounts in the last 24h.</body></html>"
 
-    # group by priority section
     groups = {"Critical": [], "Time-Sensitive": [], "FYI": []}
     for it in items:
         groups.get(it.get("importance","FYI"), groups["FYI"]).append(it)
 
     html = [f"<html><head><style>{CSS}</style></head><body>"]
     html.append("<div class='title'>Jarvis Brief</div>")
+    if note:
+        html.append(f"<div class='banner'>{note}</div>")
 
     for section in ["Critical", "Time-Sensitive", "FYI"]:
         if not groups[section]:
@@ -74,7 +96,3 @@ def build_html_digest(items: List[Dict]) -> str:
 
     html.append("</body></html>")
     return "".join(html)
-
-def md_to_html(md: str) -> str:
-    # Not used anymore for main formatting; kept to preserve function signature
-    return f"<html><head><style>{CSS}</style></head><body><pre>{md}</pre></body></html>"
