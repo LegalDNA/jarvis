@@ -1,8 +1,8 @@
-name: Jarvis Nightly Brief
+name: Jarvis Brief (Every 2 Days)
 
 on:
   schedule:
-    - cron: '0 11 * * *' # 11:00 UTC ≈ 07:00 Toronto
+    - cron: '0 11 */2 * *'  # every 2 days at 11:00 UTC ≈ 07:00 Toronto
   workflow_dispatch: {}
 
 jobs:
@@ -33,7 +33,16 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           GCAL_AUTHUSER: ${{ secrets.GCAL_AUTHUSER }}
           TZ: America/Toronto
-          MAX_POSTS_PER_ACCOUNT: 5
+          # keep these light to reduce IG throttling
+          MAX_POSTS_PER_ACCOUNT: 6
           LOOKBACK_DAYS: 5
         run: |
           python main.py
+
+      - name: Commit state (seen posts)
+        run: |
+          git config user.email "actions@users.noreply.github.com"
+          git config user.name "github-actions"
+          git add src/data/*.json || true
+          git commit -m "Update seen posts state" || echo "No changes"
+          git push || echo "No push"
