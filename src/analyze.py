@@ -28,15 +28,36 @@ def smart_summary(caption: str) -> str:
     if not cap:
         return "(No caption)"
     parts = [p.strip() for p in SENT_SPLIT.split(cap) if p.strip()]
-    score = []
-    for p in parts[:6]:
-        cta = sum(1 for w in ["register", "apply", "rsvp", "join", "sign up", "tickets", "deadline"] if w in p.lower())
-        dates = 1 if find_dates(p) else 0
-        times = 1 if TIME_PAT.search(p) else 0
-        score.append((cta + dates + times, p))
-    score.sort(reverse=True, key=lambda x: x[0])
-    best = score[0][1] if score else parts[0]
-    return truncate(best, 260)
+    scored = []
+    for p in parts[:8]:  # scan first 8 sentences
+        score = 0
+        low = p.lower()
+        for w in ["register", "apply", "rsvp", "join", "sign up", "tickets", "deadline", "limited"]:
+            if w in low:
+                score += 2
+        if find_dates(p):
+            score += 2
+        if TIME_PAT.search(p):
+            score += 1
+        if "free" in low or "open" in low:
+            score += 1
+        scored.append((score, p))
+    if not scored:
+        return truncate(cap, 360)
+    scored.sort(reverse=True, key=lambda x: (x[0], -len(x[1])))
+
+    # Take the top 2 distinct sentences for context
+    top_sentences = []
+    seen = set()
+    for _, s in scored:
+        if s not in seen:
+            top_sentences.append(s)
+            seen.add(s)
+        if len(top_sentences) == 2:
+            break
+
+    summary = " ".join(top_sentences)
+    return truncate(summary, 360)
 
 def _parse_time_to_hm(text: str) -> Optional[tuple]:
     m = TIME_PAT.search(text or "")
