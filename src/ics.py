@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from .utils import squeeze_ws
 
@@ -53,3 +53,34 @@ def build_per_event_ics(items: List[Dict], tz="America/Toronto") -> List[Tuple[s
         content = ICS_HEADER + ve + ICS_FOOTER
         files.append((fname, content.encode("utf-8"), it.get("event_title","Event")))
     return files
+
+def build_feed_ics(items: List[Dict], tz="America/Toronto") -> Tuple[str, bytes]:
+    """
+    Build a rolling feed of FUTURE events only (next ~60 days).
+    Subscribe once in Google/Apple; updates auto-appear.
+    """
+    now = datetime.utcnow()
+    horizon = now + timedelta(days=60)
+    future_items = []
+    for it in items:
+        # We only include events with start/end and a future start
+        start = it.get("start_fmt")
+        end = it.get("end_fmt")
+        if not (start and end):
+            continue
+        # Parse yyyymmddTHHMMSS as naive UTC-ish for filtering (coarse is fine)
+        try:
+            start_dt = datetime.strptime(start, "%Y%m%dT%H%M%S")
+        except Exception:
+            continue
+        if start_dt >= now and start_dt <= horizon:
+            future_items.append(it)
+
+    if not future_items:
+        # Empty valid VCALENDAR is okay; clients just show nothing
+        content = ICS_HEADER + ICS_FOOTER
+        return "upcoming.ics", content.encode("utf-8")
+
+    events = [_vevent(it, tz=tz) for it in future_items]
+    content = ICS_HEADER + "".join(events) + ICS_FOOTER
+    return "upcoming.ics", content.encode("utf-8")
