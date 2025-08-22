@@ -1,9 +1,8 @@
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Dict, Optional
 from .utils import strip_emojis, squeeze_ws, truncate, find_dates, nearest_future
 
-# Importance signals
 CRITICAL = [
     "deadline", "register", "registration", "apply", "application",
     "closes", "last day", "final day", "spots left", "limited spots", "rsvp",
@@ -39,8 +38,8 @@ def smart_summary(caption: str) -> str:
     best = score[0][1] if score else parts[0]
     return truncate(best, 260)
 
-def _parse_time_to_hm(time_text: str) -> Optional[tuple]:
-    m = TIME_PAT.search(time_text or "")
+def _parse_time_to_hm(text: str) -> Optional[tuple]:
+    m = TIME_PAT.search(text or "")
     if not m:
         return None
     hour = int(m.group(1))
@@ -54,29 +53,24 @@ def _parse_time_to_hm(time_text: str) -> Optional[tuple]:
 
 def extract_event_fields(caption: str):
     cap = caption or ""
-    # Date(s)
     date_hits = find_dates(cap)
     date_obj = nearest_future(date_hits) if date_hits else None
 
-    # Time (optional)
     hm = _parse_time_to_hm(cap)
     time_text = f"{hm[0]:02d}:{hm[1]:02d}" if hm else ""
 
-    # Venue-ish
     venue_hit = VENUE_PAT.search(cap)
     venue_text = venue_hit.group(0) if venue_hit else ""
 
-    # Link in bio cue
     link_bio = bool(URL_IN_BIO_PAT.search(cap))
 
-    # Machine-readable start/end for calendar links
     start_dt = None
     end_dt = None
     if date_obj:
         if hm:
             start_dt = date_obj.replace(hour=hm[0], minute=hm[1], second=0, microsecond=0)
         else:
-            start_dt = date_obj.replace(hour=9, minute=0, second=0, microsecond=0)  # default 09:00
+            start_dt = date_obj.replace(hour=9, minute=0, second=0, microsecond=0)
         end_dt = start_dt + timedelta(hours=1)
 
     return date_obj, time_text, venue_text, link_bio, start_dt, end_dt
@@ -87,7 +81,7 @@ def analyze_item(item: Dict) -> Dict:
     importance = classify_importance(cap)
     date_obj, time_text, venue_text, link_bio, start_dt, end_dt = extract_event_fields(cap)
 
-    fields = {
+    return {
         **item,
         "summary": summary,
         "importance": importance,
@@ -95,8 +89,6 @@ def analyze_item(item: Dict) -> Dict:
         "time_hint": time_text,
         "venue_hint": venue_text,
         "link_in_bio": link_bio,
-        # For calendar link building:
         "start_fmt": start_dt.strftime("%Y%m%dT%H%M%S") if start_dt else "",
         "end_fmt": end_dt.strftime("%Y%m%dT%H%M%S") if end_dt else "",
     }
-    return fields
